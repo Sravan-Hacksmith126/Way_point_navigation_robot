@@ -1,0 +1,18 @@
+{
+  "command": "MISSION",
+  "timestamp": 1791117493,
+  "waypoint_count": 2,
+  "total_distance_m": 34.1,
+  "waypoints": [
+    {
+      "id": 1,
+      "lat": 17.782828,
+      "lon": 83.379305
+    },
+    {
+      "id": 2,
+      "lat": 17.782812,
+      "lon": 83.379627
+    }
+  ]
+}

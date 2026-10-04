@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GPS Waypoint Navigation Robot — Mission Planner & Ground Station</title>
+  <meta name="description" content="Professional ground station dashboard for autonomous GPS waypoint navigation with satellite imagery, mission planning, and TETRIX PRIZM telemetry.">
+  
+  <!-- Typography: Inter for UI, JetBrains Mono for precision telemetry & coordinates -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+
+  <!-- Top Technical Header -->
+  <header class="app-header" id="appHeader">
+    <div class="header-branding">
+      <div class="robot-icon-wrap" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="2"></circle>
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+        </svg>
+      </div>
+      <div class="brand-titles">
+        <h1 class="brand-title">GPS WAYPOINT NAVIGATION ROBOT</h1>
+        <span class="brand-subtitle">Ground Control Station &bull; PRIZM Hardware Link</span>
+      </div>
+    </div>
+
+    <!-- Live System Indicators -->
+    <div class="header-status-group">
+      <div class="status-pill status-sim" id="simulationBadge" title="Operational Mode">
+        <span class="pulse-indicator"></span>
+        <span class="badge-text" id="simBadgeText">SIMULATION MODE</span>
+      </div>
+      <div class="status-pill status-conn" id="hardwareBadge" title="Physical Robot Link">
+        <span class="conn-dot"></span>
+        <span class="badge-text" id="hwBadgeText">LINK: SIMULATED</span>
+      </div>
+      <button class="btn-icon-mode" id="toggleHardwareModalBtn" title="Bluetooth Link Configuration" aria-label="Configure Hardware">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"></path>
+        </svg>
+        <span>Link</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Viewport Layout -->
+  <main class="main-container">
+    
+    <!-- Hero Satellite Map Viewport -->
+    <section class="map-viewport-section" id="mapSection" aria-label="Satellite Map Mission Area">
+      
+      <!-- In-Map Integrated Search Bar -->
+      <div class="map-search-bar" id="mapSearchBar">
+        <div class="search-input-wrap">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="locationSearchInput" placeholder="Search campus, building, landmark, coordinates..." autocomplete="off" spellcheck="false">
+          <button type="button" class="btn-clear-search" id="clearSearchBtn" aria-label="Clear Search" style="display:none;">&times;</button>
+          <button type="button" class="btn-search-exec" id="execSearchBtn">Search</button>
+        </div>
+        <div class="search-results-dropdown" id="searchResultsDropdown" style="display: none;"></div>
+      </div>
+
+      <!-- Compact Technical Map Overlay Controls -->
+      <div class="map-overlay-controls">
+        <button class="map-control-btn" id="btnLocateMe" title="Locate My Position" aria-label="Locate Me">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+          </svg>
+          <span class="control-label">Locate Me</span>
+        </button>
+
+        <div class="map-control-divider"></div>
+
+        <button class="map-control-btn" id="btnFitRoute" title="Fit Map to Mission Route" aria-label="Fit Route">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </button>
+
+        <button class="map-control-btn" id="btnToggleFullscreen" title="Toggle Fullscreen Map" aria-label="Fullscreen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          </svg>
+        </button>
+      </div>
+
+      <!-- North Compass Indicator -->
+      <div class="compass-indicator" id="northCompass" title="True North">
+        <span class="compass-needle"></span>
+        <span class="compass-n">N</span>
+      </div>
+
+      <!-- Leaflet Map Container -->
+      <div id="map" class="leaflet-map-canvas"></div>
+
+      <!-- Map Prompt Bar -->
+      <div class="map-guidance-bar" id="mapGuidanceBar">
+        <span class="guidance-dot"></span>
+        <span class="guidance-text" id="guidanceText">Select target waypoint count to begin mission setup</span>
+      </div>
+
+      <!-- Floating Coordinate readout at cursor -->
+      <div class="cursor-coordinate-hud" id="cursorCoordinates">
+        <span class="hud-label">CRS: WGS84</span>
+        <span class="hud-val" id="cursorCoordsText">--.------, --.------</span>
+      </div>
+    </section>
+
+    <!-- Side Control & Telemetry Panel -->
+    <aside class="sidebar-panel" id="sidebarPanel">
+      
+      <!-- Panel 1: Waypoint Mission Planning -->
+      <div class="sidebar-card mission-setup-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <h2>MISSION SETUP</h2>
+          </div>
+          <span class="badge-accent" id="wpProgressBadge">0 / 3 Set</span>
+        </div>
+
+        <div class="card-body">
+          <div class="wp-target-selector">
+            <label class="section-micro-label">NUMBER OF WAYPOINTS (MAX 5):</label>
+            <div class="btn-group-wp-count" id="wpCountSelector" role="group" aria-label="Waypoint Count">
+              <button type="button" class="btn-wp-count" data-count="1">1</button>
+              <button type="button" class="btn-wp-count" data-count="2">2</button>
+              <button type="button" class="btn-wp-count active" data-count="3">3</button>
+              <button type="button" class="btn-wp-count" data-count="4">4</button>
+              <button type="button" class="btn-wp-count" data-count="5">5</button>
+            </div>
+          </div>
+
+          <div class="route-metrics-grid">
+            <div class="metric-box">
+              <span class="metric-label">PLANNED DISTANCE</span>
+              <span class="metric-value font-mono" id="plannedDistanceDisplay">0.0 m</span>
+              <span class="metric-sub">Geodesic (Haversine)</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">EST. RUN TIME</span>
+              <span class="metric-value font-mono" id="estimatedTimeDisplay">0s</span>
+              <span class="metric-sub">@ 1.5 m/s rover speed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Mission Control Actions -->
+      <div class="sidebar-card mission-controls-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <h2>MISSION CONTROL</h2>
+          </div>
+          <span class="badge-status" id="missionStatusBadge">READY</span>
+        </div>
+
+        <div class="card-body">
+          <div class="controls-action-grid">
+            <!-- START: Primary Action (Disabled until waypoints complete) -->
+            <button type="button" class="btn-ctrl btn-start" id="btnStartMission" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span>START MISSION</span>
+            </button>
+
+            <!-- Secondary Actions -->
+            <div class="btn-subgroup">
+              <button type="button" class="btn-ctrl btn-pause" id="btnPauseMission" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16"></rect>
+                  <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+                <span>PAUSE</span>
+              </button>
+              <button type="button" class="btn-ctrl btn-resume" id="btnResumeMission" disabled style="display:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>RESUME</span>
+              </button>
+              <button type="button" class="btn-ctrl btn-stop" id="btnStopMission" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16"></rect>
+                </svg>
+                <span>STOP</span>
+              </button>
+            </div>
+
+            <!-- Destructive / Reset -->
+            <button type="button" class="btn-ctrl btn-clear" id="btnClearMission">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>CLEAR ROUTE</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3: Live Telemetry HUD -->
+      <div class="sidebar-card telemetry-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+            </svg>
+            <h2>ROBOT TELEMETRY</h2>
+          </div>
+          <span class="telemetry-source-tag font-mono">SIMULATED</span>
+        </div>
+
+        <div class="card-body">
+          <div class="telemetry-data-grid">
+            <div class="telem-item">
+              <span class="telem-k">ROBOT STATE</span>
+              <span class="telem-v font-mono highlight-state" id="telemState">READY</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-k">CURRENT WP</span>
+              <span class="telem-v font-mono" id="telemCurrentWP">--</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-k">DIST TO WP</span>
+              <span class="telem-v font-mono" id="telemDistWP">0.0 m</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-k">ROVER HEADING</span>
+              <span class="telem-v font-mono" id="telemHeading">000.0°</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-k">TARGET BEARING</span>
+              <span class="telem-v font-mono" id="telemBearing">000.0°</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-k">GPS FIX</span>
+              <span class="telem-v font-mono text-success" id="telemGpsFix">3D DGPS FIX</span>
+            </div>
+          </div>
+
+          <!-- Compass & Heading Dial Mini HUD -->
+          <div class="heading-compass-tape">
+            <div class="heading-dial-readout">
+              <span class="dial-label">COMPASS TAPE</span>
+              <span class="dial-degree font-mono" id="dialDegreeVal">HDG 000°</span>
+            </div>
+            <div class="tape-viewport">
+              <div class="tape-track font-mono" id="headingTapeTrack">
+                <span>N</span> &bull; <span>030</span> &bull; <span>060</span> &bull; <span>E</span> &bull; <span>120</span> &bull; <span>150</span> &bull; <span>S</span> &bull; <span>210</span> &bull; <span>240</span> &bull; <span>W</span> &bull; <span>300</span> &bull; <span>330</span> &bull; <span>N</span>
+              </div>
+              <div class="tape-needle"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- Bottom Coordinates & Waypoint Log Table -->
+  <section class="bottom-waypoint-tray" id="bottomWaypointTray">
+    <div class="tray-header">
+      <div class="tray-title-group">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        <span class="tray-heading">WAYPOINT COORDINATES &amp; MISSION LOG</span>
+        <span class="tray-hint">&bull; Exact 6-Decimal WGS84 &bull; Click row to focus marker</span>
+      </div>
+
+      <div class="tray-actions">
+        <button type="button" class="btn-toggle-json" id="btnToggleJsonDrawer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+          <span>Mission JSON</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Responsive Waypoints Table -->
+    <div class="table-responsive-container">
+      <table class="waypoints-table" id="waypointsTable">
+        <thead>
+          <tr>
+            <th class="col-wp">ID</th>
+            <th class="col-lat">LATITUDE</th>
+            <th class="col-lon">LONGITUDE</th>
+            <th class="col-leg">LEG DIST</th>
+            <th class="col-status">STATUS</th>
+            <th class="col-action">ACTION</th>
+          </tr>
+        </thead>
+        <tbody id="waypointsTableBody">
+          <tr class="empty-row" id="emptyWpRow">
+            <td colspan="6">No waypoints designated. Select up to 5 waypoints on the satellite map above.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Collapsible Developer Mission JSON Drawer -->
+    <div class="mission-json-drawer" id="missionJsonDrawer" style="display: none;">
+      <div class="json-drawer-header">
+        <span class="font-mono text-muted">active_mission.json (PRIZM Payload)</span>
+        <button type="button" class="btn-copy-json" id="btnCopyJson">Copy JSON</button>
+      </div>
+      <pre class="json-code-block font-mono" id="jsonOutputContent">{}</pre>
+    </div>
+  </section>
+
+  <!-- Bluetooth Hardware Configuration Modal -->
+  <div class="modal-backdrop" id="hardwareModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="hwModalTitle">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="hwModalTitle">TETRIX PRIZM &bull; Bluetooth Hardware Link</h3>
+        <button type="button" class="btn-close-modal" id="btnCloseModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Configure PySerial connection to the physical HC-05 transceiver. For testing without robot hardware, remain in Simulation Mode.
+        </p>
+        
+        <div class="form-group">
+          <label for="comPortSelect">COM / Serial Port:</label>
+          <div class="port-input-row">
+            <select id="comPortSelect" class="form-select">
+              <option value="COM3">COM3 (Default HC-05)</option>
+            </select>
+            <button type="button" class="btn-refresh-ports" id="btnRefreshPorts" title="Rescan Ports">&#x21bb;</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="baudRateSelect">Baud Rate:</label>
+          <select id="baudRateSelect" class="form-select">
+            <option value="9600" selected>9600 bps (Standard PRIZM / HC-05)</option>
+            <option value="115200">115200 bps (High Speed)</option>
+            <option value="57600">57600 bps</option>
+            <option value="38400">38400 bps</option>
+          </select>
+        </div>
+
+        <div class="form-group mode-toggle-group">
+          <label>Operational Mode:</label>
+          <div class="radio-pill-group">
+            <button type="button" class="mode-pill active" id="btnModeSim">Simulation</button>
+            <button type="button" class="mode-pill" id="btnModeHardware">Physical Robot</button>
+          </div>
+        </div>
+
+        <div class="hw-status-notice font-mono" id="hwModalNotice">
+          Status: Offline &bull; Simulation Active
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modal-secondary" id="btnDisconnectBt">Disconnect</button>
+        <button type="button" class="btn-modal-primary" id="btnConnectBt">Connect Hardware</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Feedback Toast Notification Host -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- Leaflet JS CDN -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Ground Station Application Engine -->
+  <script src="app.js"></script>
+</body>
+</html>
